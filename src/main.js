@@ -11,6 +11,11 @@ import {
 const searchForm = document.getElementById('search-form');
 const searchInput = searchForm.elements['search-text'];
 
+let currentQuery = '';
+let currentPage = 1;
+let totalHits = 0;
+let isLoading = false;
+
 searchForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -25,13 +30,18 @@ searchForm.addEventListener('submit', async (event) => {
     return;
   }
 
+  currentQuery = query;
+  currentPage = 1;
   clearGallery();
   showLoader();
+  isLoading = true;
 
   try {
-    const data = await getImagesByQuery(query);
+    const data = await getImagesByQuery(currentQuery, currentPage);
 
     hideLoader();
+    isLoading = false;
+    totalHits = data.totalHits;
 
     if (data.hits.length === 0) {
       iziToast.info({
@@ -46,6 +56,7 @@ searchForm.addEventListener('submit', async (event) => {
     createGallery(data.hits);
   } catch (error) {
     hideLoader();
+    isLoading = false;
     console.error('Error fetching images:', error);
 
     iziToast.error({
@@ -53,6 +64,29 @@ searchForm.addEventListener('submit', async (event) => {
       message: 'Failed to fetch images. Please try again later.',
       position: 'topRight',
     });
+  }
+});
+
+// Infinite scroll
+window.addEventListener('scroll', async () => {
+  const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+
+  if (scrollTop + clientHeight >= scrollHeight - 200) {
+    if (isLoading || !currentQuery || currentPage * 40 >= totalHits) {
+      return;
+    }
+
+    isLoading = true;
+    currentPage++;
+
+    try {
+      const data = await getImagesByQuery(currentQuery, currentPage);
+      createGallery(data.hits);
+    } catch (error) {
+      console.error('Error fetching more images:', error);
+    } finally {
+      isLoading = false;
+    }
   }
 });
 
